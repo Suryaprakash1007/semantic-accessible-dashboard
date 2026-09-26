@@ -5,7 +5,7 @@ import { fetchUsers } from "../api/api";
 
 const CACHE_KEY = "rabtech-users-cache";
 const ADDED_USERS_KEY = "rabtech-added-users";
-
+const DELETED_USERS_KEY = "rabtech-deleted-users";
 function readStorage(key, fallback = []) {
   try {
     const saved = localStorage.getItem(key);
@@ -27,7 +27,10 @@ function Users() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
-  // Fetch users from the REST API
+  const [editingUser, setEditingUser] = useState(null);
+  const [editOpen, setEditOpen] = useState(false);
+
+  // Fetch API users
   useEffect(() => {
     let cancelled = false;
 
@@ -46,37 +49,52 @@ function Users() {
           status: "Active",
         }));
 
-        // Preserve users added through the form
         const addedUsers = readStorage(
-          ADDED_USERS_KEY,
-          []
-        );
+  ADDED_USERS_KEY,
+  []
+);
+
+const cachedUsers = readStorage(CACHE_KEY, []);
+
+const deletedUserIds = readStorage(
+  DELETED_USERS_KEY,
+  []
+);
+
+const deletedIds = new Set(deletedUserIds);
+
+        // Keep edits to API users from localStorage
+        const mergedApiUsers = formattedUsers
+  .filter((apiUser) => !deletedIds.has(apiUser.id))
+  .map((apiUser) => {
+    const cached = cachedUsers.find(
+      (user) => user.id === apiUser.id
+    );
+
+    return cached
+      ? { ...apiUser, ...cached }
+      : apiUser;
+  });
 
         const combinedUsers = [
-          ...formattedUsers,
+          ...mergedApiUsers,
           ...addedUsers,
         ];
 
         if (!cancelled) {
           setUsers(combinedUsers);
 
-          try {
-            localStorage.setItem(
-              CACHE_KEY,
-              JSON.stringify(combinedUsers)
-            );
-          } catch {
-            setError(
-              "Users loaded, but browser storage is unavailable."
-            );
-          }
+          localStorage.setItem(
+            CACHE_KEY,
+            JSON.stringify(combinedUsers)
+          );
         }
       } catch {
         if (!cancelled) {
           setError(
-            users.length > 0
+            users.length
               ? "Unable to refresh users. Showing cached data."
-              : "Unable to load users. Please check your connection and try again."
+              : "Unable to load users. Check your internet connection."
           );
         }
       } finally {
@@ -93,30 +111,55 @@ function Users() {
     };
   }, []);
 
-  // Search, filter, and sort users
+  // Save users and persist changes
+  function persistUsers(updatedUsers) {
+    setUsers(updatedUsers);
+
+    try {
+      localStorage.setItem(
+        CACHE_KEY,
+        JSON.stringify(updatedUsers)
+      );
+
+      const apiIds = new Set(
+        Array.from({ length: 10 }, (_, i) => i + 1)
+      );
+
+      const addedUsers = updatedUsers.filter(
+        (user) => !apiIds.has(user.id)
+      );
+
+      localStorage.setItem(
+        ADDED_USERS_KEY,
+        JSON.stringify(addedUsers)
+      );
+    } catch {
+      setError("Unable to save changes to browser storage.");
+    }
+  }
+
+  // Search, filter, and sort
   const filteredUsers = useMemo(() => {
-    let result = users.filter((user) => {
-      const query = search.toLowerCase().trim();
+    return users
+      .filter((user) => {
+        const query = search.toLowerCase().trim();
 
-      const matchesSearch =
-        user.name.toLowerCase().includes(query) ||
-        user.email.toLowerCase().includes(query);
+        const matchesSearch =
+          user.name.toLowerCase().includes(query) ||
+          user.email.toLowerCase().includes(query);
 
-      const matchesRole =
-        activeRole === "All" ||
-        user.role === activeRole;
+        const matchesRole =
+          activeRole === "All" ||
+          user.role === activeRole;
 
-      return matchesSearch && matchesRole;
-    });
-
-    result.sort((a, b) => {
-      return a[sortBy].localeCompare(b[sortBy]);
-    });
-
-    return result;
+        return matchesSearch && matchesRole;
+      })
+      .sort((a, b) =>
+        a[sortBy].localeCompare(b[sortBy])
+      );
   }, [users, search, activeRole, sortBy]);
 
-  // Add a new user and save it in localStorage
+  // Create
   function handleAddUser(event) {
     event.preventDefault();
 
@@ -130,38 +173,86 @@ function Users() {
       status: "Active",
     };
 
-    const addedUsers = readStorage(
-      ADDED_USERS_KEY,
+    persistUsers([...users, newUser]);
+
+    setMessage(`${newUser.name} was added successfully.`);
+    event.currentTarget.reset();
+  }
+
+  // Open edit modal
+  function openEdit(user) {
+    setEditingUser({ ...user });
+    setEditOpen(true);
+  }
+
+  // Update
+  function handleEditUser(event) {
+    event.preventDefault();
+
+    const formData = new FormData(event.currentTarget);
+
+    const updatedUser = {
+      ...editingUser,
+      name: formData.get("editUserName").trim(),
+      email: formData.get("editUserEmail").trim(),
+      role: formData.get("editUserRole"),
+      status: formData.get("editUserStatus"),
+    };
+
+    const updatedUsers = users.map((user) =>
+      user.id === updatedUser.id ? updatedUser : user
+    );
+
+    persistUsers(updatedUsers);
+
+    setMessage(`${updatedUser.name} was updated successfully.`);
+    setEditOpen(false);
+    setEditingUser(null);
+  }
+
+  // Delete
+  
+function handleDeleteUser(user) {
+  const confirmed = window.confirm(
+    `Are you sure you want to delete ${user.name}?`
+  );
+
+  if (!confirmed) return;
+
+  const updatedUsers = users.filter(
+    (item) => item.id !== user.id
+  );
+
+  // Persist the updated user list
+  persistUsers(updatedUsers);
+
+  // Track deleted API users so they don't return
+  const apiIds = new Set(
+    Array.from({ length: 10 }, (_, i) => i + 1)
+  );
+
+  if (apiIds.has(user.id)) {
+    const deletedIds = readStorage(
+      DELETED_USERS_KEY,
       []
     );
 
-    const updatedAddedUsers = [
-      ...addedUsers,
-      newUser,
-    ];
-
-    try {
-      localStorage.setItem(
-        ADDED_USERS_KEY,
-        JSON.stringify(updatedAddedUsers)
-      );
-
-      const updatedUsers = [...users, newUser];
-
-      localStorage.setItem(
-        CACHE_KEY,
-        JSON.stringify(updatedUsers)
-      );
-
-      setUsers(updatedUsers);
-      setMessage(`${newUser.name} was added successfully.`);
-      event.currentTarget.reset();
-    } catch {
-      setError(
-        "Unable to save the user. Browser storage may be full or unavailable."
-      );
+    if (!deletedIds.includes(user.id)) {
+      try {
+        localStorage.setItem(
+          DELETED_USERS_KEY,
+          JSON.stringify([...deletedIds, user.id])
+        );
+      } catch {
+        setError(
+          "Unable to save deleted user information."
+        );
+      }
     }
   }
+
+  setMessage(`${user.name} was deleted successfully.`);
+}
 
   const roles = [
     "All",
@@ -198,10 +289,9 @@ function Users() {
                 <input
                   id="modal-user-name"
                   name="modalUserName"
-                  type="text"
-                  autoComplete="name"
                   required
                   minLength={3}
+                  autoComplete="name"
                 />
               </div>
 
@@ -213,15 +303,13 @@ function Users() {
                   id="modal-user-email"
                   name="modalUserEmail"
                   type="email"
-                  autoComplete="email"
                   required
+                  autoComplete="email"
                 />
               </div>
             </fieldset>
 
-            <button type="submit">
-              Save User
-            </button>
+            <button type="submit">Save User</button>
           </form>
         </Modal>
 
@@ -229,6 +317,80 @@ function Users() {
           {message}
         </p>
       </section>
+
+      {/* Edit user modal */}
+      <Modal
+        title="Edit User"
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+      >
+        {editingUser && (
+          <form onSubmit={handleEditUser}>
+            <fieldset>
+              <legend>Edit User Information</legend>
+
+              <div>
+                <label htmlFor="edit-user-name">
+                  Full Name
+                </label>
+                <input
+                  id="edit-user-name"
+                  name="editUserName"
+                  defaultValue={editingUser.name}
+                  required
+                  minLength={3}
+                />
+              </div>
+
+              <div>
+                <label htmlFor="edit-user-email">
+                  Email Address
+                </label>
+                <input
+                  id="edit-user-email"
+                  name="editUserEmail"
+                  type="email"
+                  defaultValue={editingUser.email}
+                  required
+                />
+              </div>
+
+              <div>
+                <label htmlFor="edit-user-role">
+                  Role
+                </label>
+                <select
+                  id="edit-user-role"
+                  name="editUserRole"
+                  defaultValue={editingUser.role}
+                >
+                  <option value="Administrator">
+                    Administrator
+                  </option>
+                  <option value="Manager">Manager</option>
+                  <option value="Employee">Employee</option>
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="edit-user-status">
+                  Status
+                </label>
+                <select
+                  id="edit-user-status"
+                  name="editUserStatus"
+                  defaultValue={editingUser.status}
+                >
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </select>
+              </div>
+            </fieldset>
+
+            <button type="submit">Save Changes</button>
+          </form>
+        )}
+      </Modal>
 
       {/* Search, filter, and sort */}
       <section aria-labelledby="user-controls-title">
@@ -253,9 +415,7 @@ function Users() {
           </div>
 
           <div>
-            <label htmlFor="user-sort">
-              Sort users
-            </label>
+            <label htmlFor="user-sort">Sort users</label>
             <select
               id="user-sort"
               value={sortBy}
@@ -263,12 +423,8 @@ function Users() {
                 setSortBy(event.target.value)
               }
             >
-              <option value="name">
-                Name (A–Z)
-              </option>
-              <option value="email">
-                Email (A–Z)
-              </option>
+              <option value="name">Name (A–Z)</option>
+              <option value="email">Email (A–Z)</option>
             </select>
           </div>
         </div>
@@ -296,11 +452,9 @@ function Users() {
         </div>
       </section>
 
-      {/* API results */}
+      {/* User table */}
       <section aria-labelledby="user-table-title">
-        <h2 id="user-table-title">
-          Existing Users
-        </h2>
+        <h2 id="user-table-title">Existing Users</h2>
 
         {error && (
           <div className="error-banner" role="alert">
@@ -326,15 +480,17 @@ function Users() {
         ) : (
           <>
             <p aria-live="polite">
-              Showing {filteredUsers.length} of{" "}
-              {users.length} users
+              Showing {filteredUsers.length} of {users.length} users
             </p>
 
-            <div className="table-wrapper">
+            <div
+  className="table-wrapper"
+  role="region"
+  aria-label="Users table. Scroll horizontally to view all columns."
+  tabIndex={0}
+>
               <table>
-                <caption>
-                  List of registered users
-                </caption>
+                <caption>List of registered users</caption>
 
                 <thead>
                   <tr>
@@ -342,26 +498,41 @@ function Users() {
                     <th scope="col">Email</th>
                     <th scope="col">Role</th>
                     <th scope="col">Status</th>
+                    <th scope="col">Actions</th>
                   </tr>
                 </thead>
 
                 <tbody>
                   {filteredUsers.map((user) => (
                     <tr key={user.id}>
-                      <th scope="row">
-                        {user.name}
-                      </th>
+                      <th scope="row">{user.name}</th>
                       <td>{user.email}</td>
                       <td>{user.role}</td>
                       <td>{user.status}</td>
+                      <td>
+                        <button
+                          type="button"
+                          onClick={() => openEdit(user)}
+                          aria-label={`Edit ${user.name}`}
+                        >
+                          Edit
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteUser(user)}
+                          aria-label={`Delete ${user.name}`}
+                        >
+                          Delete
+                        </button>
+                      </td>
                     </tr>
                   ))}
 
                   {filteredUsers.length === 0 && (
                     <tr>
-                      <td colSpan="4">
-                        No users found. Try a different
-                        search or filter.
+                      <td colSpan="5">
+                        No users found.
                       </td>
                     </tr>
                   )}

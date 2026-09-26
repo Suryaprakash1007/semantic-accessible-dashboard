@@ -1,7 +1,15 @@
-import { useRef } from "react";
 
-function Modal({ title, children, triggerLabel }) {
+import { useEffect, useId, useRef } from "react";
+
+function Modal({
+  title,
+  children,
+  triggerLabel,
+  open,
+  onClose,
+}) {
   const dialogRef = useRef(null);
+  const titleId = useId();
 
   function openModal() {
     dialogRef.current?.showModal();
@@ -11,19 +19,39 @@ function Modal({ title, children, triggerLabel }) {
     dialogRef.current?.close();
   }
 
+  // Support opening the dialog from a parent component
+  useEffect(() => {
+    const dialog = dialogRef.current;
+
+    if (!dialog) return;
+
+    if (open === true && !dialog.open) {
+      dialog.showModal();
+    } else if (open === false && dialog.open) {
+      dialog.close();
+    }
+  }, [open]);
+
+  function handleClose() {
+    onClose?.();
+  }
+
   return (
     <>
-      <button type="button" onClick={openModal}>
-        {triggerLabel}
-      </button>
+      {triggerLabel && (
+        <button type="button" onClick={openModal}>
+          {triggerLabel}
+        </button>
+      )}
 
       <dialog
         ref={dialogRef}
-        aria-labelledby="modal-title"
+        aria-labelledby={titleId}
         className="accessible-modal"
+        onClose={handleClose}
       >
         <div className="modal-content">
-          <h2 id="modal-title">{title}</h2>
+          <h2 id={titleId}>{title}</h2>
 
           {children}
 
