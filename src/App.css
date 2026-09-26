@@ -6,10 +6,11 @@
 }
 
 body {
-  font-family: Arial, sans-serif;
-  background-color: #f4f6f9;
-  color: #1f2937;
+  font-family: var(--font-family);
+  background-color: var(--color-background);
+  color: var(--color-text);
   line-height: 1.6;
+  font-size: var(--font-size-base);
 }
 
 a {
@@ -41,15 +42,14 @@ a:hover {
   top: 10px;
 }
 
-/* Header */
 .app-header {
-  background: #1e293b;
+  background: var(--color-header);
   color: white;
-  padding: 18px 28px;
+  padding: var(--space-4) var(--space-8);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 20px;
+  gap: var(--space-4);
   flex-wrap: wrap;
 }
 
@@ -121,12 +121,19 @@ h2 {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 20px;
 }
-
 .summary-cards article {
-  background: white;
-  padding: 24px;
-  border-radius: 10px;
-  border: 1px solid #e5e7eb;
+  background: var(--color-surface);
+  padding: var(--space-6);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--transition-fast),
+              transform var(--transition-fast);
+}
+
+.summary-cards article:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-3px);
 }
 
 .summary-cards article p {
@@ -293,4 +300,284 @@ thead {
 
 .accessible-modal form button {
   margin-bottom: 12px;
+}
+
+/* =================================
+   RESPONSIVE DESIGN
+================================= */
+
+/* Small mobile: 320px and above */
+@media (min-width: 320px) {
+  .page-content {
+    padding: 16px;
+  }
+
+  .app-header {
+    padding: 16px;
+  }
+
+  .summary-cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Tablet: 768px and above */
+@media (min-width: 768px) {
+  .app-layout {
+    flex-direction: row;
+  }
+
+  .app-sidebar {
+    width: 220px;
+  }
+
+  .page-content {
+    padding: 24px;
+  }
+
+  .summary-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Laptop: 1024px and above */
+@media (min-width: 1024px) {
+  .app-sidebar {
+    width: 240px;
+  }
+
+  .page-content {
+    padding: 32px;
+  }
+
+  .summary-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Large desktop: 1440px and above */
+@media (min-width: 1440px) {
+  .page-content {
+    padding: 40px;
+  }
+
+  .summary-cards {
+    gap: 28px;
+  }
+}
+
+
+.header-wrapper {
+  position: relative;
+}
+
+.theme-toggle {
+  position: absolute;
+  top: 16px;
+  right: 28px;
+  z-index: 10;
+  background: var(--color-primary);
+  color: white;
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-4);
+  transition: background var(--transition-fast);
+}
+
+.theme-toggle:hover {
+  background: var(--color-primary-hover);
+}
+
+@media (max-width: 768px) {
+  .theme-toggle {
+    position: static;
+    margin: 0 16px 12px auto;
+    display: block;
+  }
+}
+
+/* Glassmorphism header */
+.app-header {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  background: rgba(30, 41, 59, 0.92);
+  box-shadow: var(--shadow-md);
+}
+
+/* Smooth card transitions */
+.summary-cards article {
+  transition:
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.summary-cards article:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
+}
+
+/* Smooth button transitions */
+button,
+a {
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+/* Smooth theme transition */
+body,
+.app-sidebar,
+.summary-cards article,
+form,
+table {
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+/* Prevent horizontal page overflow */
+html,
+body,
+#root {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  overflow-x: clip;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* Allow content to shrink inside flex layouts */
+.app-layout,
+.page-content {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Keep sidebar from expanding unexpectedly */
+.app-sidebar {
+  flex-shrink: 0;
+}
+
+/* Keep tables scrollable inside their own container */
+.users-main section:last-child {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.users-main table {
+  min-width: 600px;
+}
+
+/* Prevent long text from expanding the page */
+td,
+th,
+p,
+a {
+  overflow-wrap: anywhere;
+}
+
+/* Mobile and tablet layout fixes */
+@media (max-width: 767px) {
+  .app-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .app-header nav {
+    width: 100%;
+  }
+
+  .app-header nav ul {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .header-wrapper {
+    width: 100%;
+  }
+
+  .theme-toggle {
+    max-width: calc(100% - 32px);
+    margin: 12px auto;
+    position: static;
+  }
+
+  .app-layout {
+    flex-direction: column;
+  }
+
+  .app-sidebar {
+    width: 100%;
+    padding: 16px;
+  }
+
+  .app-sidebar ul {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .page-content {
+    width: 100%;
+    min-width: 0;
+    padding: 16px;
+    text-align: left;
+  }
+
+  h1 {
+    font-size: 1.6rem;
+  }
+
+  h2 {
+    font-size: 1.3rem;
+  }
+
+  .page-content article {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    padding: 16px;
+  }
+
+  .summary-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .users-main section:last-child {
+    width: 100%;
+    overflow-x: auto;
+  }
+}
+
+@media (max-width: 767px) {
+  .app-header {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+    width: 100%;
+    padding: 16px;
+  }
+
+  .app-header nav {
+    width: 100%;
+  }
+
+  .header-profile {
+    width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .theme-toggle {
+    position: static;
+    display: block;
+    max-width: 100%;
+    margin: 12px auto;
+  }
 }
